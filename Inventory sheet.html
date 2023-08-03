@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Crown Tavern Restaurant Singer, and other Inventory</title>
+    <style>
+        /* Styles for the table */
+        table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+
+        th, td {
+            border: 1px solid black;
+            padding: 8px;
+            text-align: left;
+        }
+
+        th {
+            background-color: #f2f2f2;
+        }
+
+        tr:hover {
+            background-color: #f5f5f5;
+        }
+
+        /* Styles for the input fields and buttons */
+        #item, #quantity {
+            margin-bottom: 10px;
+        }
+
+        #submitBtn, #clearBtn, #exportBtn, #sendEmailBtn, #sendExcelEmailBtn {
+            margin-top: 10px;
+        }
+
+        .deleteBtn {
+            background-color: #ff3333;
+            color: #fff;
+            border: none;
+            padding: 4px 8px;
+            cursor: pointer;
+        }
+
+        /* Make quantity cells editable */
+        td[contenteditable="true"] {
+            cursor: pointer;
+        }
+    </style>
+    <!-- Include Flatpickr CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+</head>
+<body>
+    <!-- Logo -->
+    <img src="logo.png" alt="The Crown Tavern Logo" width="100" height="100">
+
+    <h1>The Crown Tavern Restaurant Singer, and other Inventory</h1>
+
+    <!-- Date Picker for Top of Page -->
+    <label for="inventoryDate">Select Date:</label>
+    <input type="text" id="inventoryDate" data-input>
+
+    <!-- Current Date (will be updated dynamically) -->
+    <p id="currentDate"></p>
+
+    <div>
+        <label for="item">Item:</label>
+        <input type="text" id="item" placeholder="Item name">
+        <label for="quantity">Quantity:</label>
+        <input type="number" id="quantity" placeholder="Quantity">
+        <button id="submitBtn" onclick="addItem()">Add Item</button>
+        <button id="clearBtn" onclick="clearInventory()">Clear Inventory</button>
+        <button id="sendEmailBtn" onclick="sendEmail()">Send via Gmail</button>
+        <button id="exportBtn" onclick="exportToExcel()">Export as Excel</button>
+        <button id="sendExcelEmailBtn" onclick="sendExcelViaEmail()">Send Excel via Email</button>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Item</th>
+                <th>Quantity</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody id="inventoryTableBody">
+            <!-- Table rows will be dynamically generated here -->
+        </tbody>
+    </table>
+
+    <!-- Include Flatpickr JS and other scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Blob.js/1.1.1/Blob.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.2/FileSaver.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.16.9/xlsx.full.min.js"></script>
+    <script>
+        // Function to add the current date
+        function addCurrentDate() {
+            const currentDateElement = document.getElementById("currentDate");
+            const currentDate = new Date();
+            currentDateElement.textContent = "Current Date: " + currentDate.toDateString();
+        }
+
+        // Function to add an item to the table and save it to localStorage
+        function addItem() {
+            const itemName = document.getElementById("item").value;
+            const quantity = document.getElementById("quantity").value;
+            const date = document.getElementById("inventoryDate").value;
+
+            if (!itemName || !quantity || !date) {
+                alert("Please fill in all fields.");
+                return;
+            }
+
+            const tableBody = document.getElementById("inventoryTableBody");
+            const newRow = document.createElement("tr");
+            newRow.innerHTML = `
+                <td>${itemName}</td>
+                <td contenteditable="true">${quantity}</td>
+                <td>
+                    <button class="deleteBtn" onclick="deleteItem(this)">Delete</button>
+                </td>
+            `;
+            tableBody.appendChild(newRow);
+
+            // Save the data to localStorage
+            const inventoryData = JSON.parse(localStorage.getItem("inventory") || "[]");
+            inventoryData.push({ itemName, quantity, date });
+            localStorage.setItem("inventory", JSON.stringify(inventoryData));
+
+            // Clear input fields
+            document.getElementById("item").value = "";
+            document.getElementById("quantity").value = "";
+        }
+
+        // Function to delete an item from the table and localStorage
+        function deleteItem(button) {
+            const row = button.parentNode.parentNode;
+            const itemName = row.cells[0].textContent;
+
+            const inventoryData = JSON.parse(localStorage.getItem("inventory") || "[]");
+            const updatedData = inventoryData.filter(item => item.itemName !== itemName);
+            localStorage.setItem("inventory", JSON.stringify(updatedData));
+
+            row.remove();
+        }
+
+        // Function to clear the inventory and localStorage
+        function clearInventory() {
+            const confirmation = confirm("Are you sure you want to clear the inventory?");
+            if (confirmation) {
+                const tableBody = document.getElementById("inventoryTableBody");
+                tableBody.innerHTML = ""; // Clear the table
+
+                // Clear localStorage
+                localStorage.removeItem("inventory");
+            }
+        }
+
+        // Function to update the data in localStorage after editing quantity
+        function updateLocalStorage(itemName, newQuantity) {
+            const inventoryData = JSON.parse(localStorage.getItem("inventory") || "[]");
+            const updatedData = inventoryData.map(item => {
+                if (item.itemName === itemName) {
+                    return { ...item, quantity: newQuantity };
+                }
+                return item;
+            });
+            localStorage.setItem("inventory", JSON.stringify(updatedData));
+        }
+
+        // Function to load the data from localStorage on page load
+        function loadInventoryData() {
+            const inventoryData = JSON.parse(localStorage.getItem("inventory") || "[]");
+            const tableBody = document.getElementById("inventoryTableBody");
+            tableBody.innerHTML = ""; // Clear the table
+
+            inventoryData.forEach(item => {
+                const newRow = document.createElement("tr");
+                newRow.innerHTML = `
+                    <td>${item.itemName}</td>
+                    <td contenteditable="true">${item.quantity}</td>
+                    <td>
+                        <button class="deleteBtn" onclick="deleteItem(this)">Delete</button>
+                    </td>
+                `;
+                tableBody.appendChild(newRow);
+            });
+        }
+
+        // Function to send the inventory data via Gmail
+        function sendEmail() {
+            const inventoryData = JSON.parse(localStorage.getItem("inventory") || "[]");
+            if (inventoryData.length === 0) {
+                alert("Inventory is empty. Nothing to send.");
+                return;
+            }
+
+            const subject = `The Crown Tavern Kitchen Inventory for ${document.getElementById("inventoryDate").value}`;
+            let body = `Inventory List for ${document.getElementById("inventoryDate").value}:\n\n`;
+            inventoryData.forEach(item => {
+                body += `${item.itemName}: ${item.quantity}\n`;
+            });
+
+            const mailtoUrl = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+
+            // Open the user's default email client with the pre-filled email
+            window.location.href = mailtoUrl;
+        }
+
+        // Function to export the inventory data as an Excel file
+        function exportToExcel() {
+            const inventoryData = JSON.parse(localStorage.getItem("inventory") || "[]");
+            if (inventoryData.length === 0) {
+                alert("Inventory is empty. Nothing to export.");
+                return;
+            }
+
+            const filename = "Inventory.xlsx";
+            const wsName = "Inventory";
+
+            const wsData = inventoryData.map(item => ({ Item: item.itemName, Quantity: item.quantity }));
+
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.json_to_sheet(wsData);
+            XLSX.utils.book_append_sheet(wb, ws, wsName);
+
+            const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+
+            const blob = new Blob([wbout], { type: 'application/octet-stream' });
+
+            saveAs(blob, filename);
+        }
+
+        // Function to send the Excel file via email
+        function sendExcelViaEmail() {
+            const inventoryData = JSON.parse(localStorage.getItem("inventory") || "[]");
+            if (inventoryData.length === 0) {
+                alert("Inventory is empty. Nothing to send.");
+                return;
+            }
+
+            const filename = "Inventory.xlsx";
+            const wsName = "Inventory";
+
+            const wsData = inventoryData.map(item => ({ Item: item.itemName, Quantity: item.quantity }));
+
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.json_to_sheet(wsData);
+            XLSX.utils.book_append_sheet(wb, ws, wsName);
+
+            const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+
+            const blob = new Blob([wbout], { type: 'application/octet-stream' });
+
+            // Create a FormData and append the blob to it
+            const formData = new FormData();
+            formData.append('file', blob, filename);
+
+            // Create the email with the FormData as an attachment
+            const subject = `The Crown Tavern Kitchen Inventory for ${document.getElementById("inventoryDate").value}`;
+            const body = `Please find the attached Excel file with the inventory list for ${document.getElementById("inventoryDate").value}.`;
+            const mailtoUrl = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+
+            // Create a link and trigger a click event to open the email client
+            const link = document.createElement('a');
+            link.href = mailtoUrl;
+            link.target = '_blank';
+            link.download = filename;
+            link.click();
+        }
+
+        // Load the data on page load
+        loadInventoryData();
+
+        // Add the current date on page load
+        addCurrentDate();
+
+        // Initialize Flatpickr for the date input field at the top of the page
+        const inventoryDateInput = document.getElementById("inventoryDate");
+        flatpickr(inventoryDateInput, {
+            enableTime: false,
+            dateFormat: "Y-m-d",
+            defaultDate: "today",
+            // Add any additional configuration options for the calendar here...
+        });
+
+        // Add event listener to the quantity cells to enable editing
+        const quantityCells = document.querySelectorAll("#inventoryTableBody td:nth-child(2)");
+        quantityCells.forEach(cell => {
+            cell.addEventListener("click", () => editQuantity(cell));
+        });
+
+        // Function to edit the quantity directly in the table
+        function editQuantity(cell) {
+            const oldValue = cell.textContent;
+            cell.innerHTML = `<input type="number" value="${oldValue}" min="0">`;
+            const inputElement = cell.querySelector("input");
+            inputElement.focus();
+            inputElement.addEventListener("blur", () => {
+                const newValue = inputElement.value;
+                cell.textContent = newValue;
+                const row = cell.parentNode;
+                const itemName = row.cells[0].textContent;
+                updateLocalStorage(itemName, newValue);
+            });
+        }
+    </script>
+</body>
+</html>
+<!-- ... The rest of the HTML and head section remains unchanged ... -->
+<body>
+    <!-- ... The rest of the body section remains unchanged ... -->
+
+    <!-- Current Date (will be updated dynamically) -->
+    <p id="currentDate"></p>
+
+    <!-- ... The rest of the HTML remains unchanged ... -->
+
+    <script>
+        // ... Existing functions remain unchanged ...
+
+        // Function to clear the inventory and reset quantities to 0
+        function clearInventory() {
+            const inventoryData = JSON.parse(localStorage.getItem("inventory") || "[]");
+
+            if (inventoryData.length === 0) {
+                alert("Inventory is already empty.");
+                return;
+            }
+
+            const confirmation = confirm("Are you sure you want to clear the inventory?");
+            if (confirmation) {
+                inventoryData.forEach(item => {
+                    item.quantity = 0;
+                });
+
+                localStorage.setItem("inventory", JSON.stringify(inventoryData));
+
+                // Refresh the table to update the quantities
+                loadInventoryData();
+            }
+        }
+
+        // ... The rest of the script section remains unchanged ...
+    </script>
+</body>
+</html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Crown Tavern Restaurant Kitchen Inventory</title>
+    <style>
+        /* Styles for the table, buttons, and other elements */
+        /* ... Your existing styles here ... */
+
+        /* Media queries for iPad and iPhone */
+        @media only screen and (max-width: 768px) {
+            /* Adjust the table layout for iPad portrait and iPhone landscape */
+            table {
+                font-size: 14px;
+            }
+            th, td {
+                padding: 6px;
+            }
+        }
+
+        @media only screen and (max-width: 600px) {
+            /* Adjust the table layout for iPhone portrait */
+            table {
+                font-size: 12px;
+            }
+            th, td {
+                padding: 4px;
+            }
+        }
+    </style>
+    <!-- Include Flatpickr CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+</head>
+<body>
+    <!-- ... The rest of the body section remains unchanged ... -->
+
+    <script>
+        // ... All functions remain unchanged ...
+    </script>
+</body>
+</html>
+ <script>
+        // ... All functions remain unchanged ...
+
+        // Function to delete an item from the inventory
+        function deleteItem(index) {
+            // Ask for confirmation before deleting the item
+            const confirmation = confirm("Are you sure you want to delete this item?");
+            if (confirmation) {
+                const inventoryData = JSON.parse(localStorage.getItem("inventory") || "[]");
+                inventoryData.splice(index, 1);
+                localStorage.setItem("inventory", JSON.stringify(inventoryData));
+                loadInventoryData();
+            }
+        }
+    </script>
+</body>
+</html>
+ <div>
+        <!-- ... Your existing code for adding items ... -->
+
+        <!-- Import Excel button -->
+        <input type="file" id="importExcelBtn" accept=".xlsx" onchange="importInventory(event)">
+    </div>
+
+    <!-- Include Flatpickr JS and other scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Blob.js/1.1.1/Blob.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.2/FileSaver.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.16.9/xlsx.full.min.js"></script>
+    <script>
+        // ... Your existing functions remain unchanged ...
+
+        // Function to import inventory from Excel file
+        function importInventory(event) {
+            const file = event.target.files[0];
+
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: "array" });
+                    const sheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[sheetName];
+                    const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+                    // Append the imported data to the existing inventory
+                    const inventoryData = JSON.parse(localStorage.getItem("inventory") || "[]");
+                    inventoryData.push(...jsonData);
+                    localStorage.setItem("inventory", JSON.stringify(inventoryData));
+
+                    // Refresh the table to display the imported data
+                    loadInventoryData();
+                };
+                reader.readAsArrayBuffer(file);
+            }
+        }
+    </script>
+</body>
+</html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <!-- ... Your existing head section ... -->
+</head>
+<body>
+    <!-- ... Your existing body section ... -->
+
+    <div>
+        <!-- ... Your existing code for adding items and importing from Excel ... -->
+
+        <!-- Clear Items button -->
+        <button id="clearItemsBtn" onclick="clearItems()">Clear Items</button>
+    </div>
+
+    <table>
+        <!-- ... Your existing table with inventory items ... -->
+    </table>
+
+    <!-- Include Flatpickr JS and other scripts ... -->
+    <script>
+        // ... Your existing functions and scripts ...
+
+        // Function to clear the entire items list from the inventory
+        function clearItems() {
+            const confirmation = confirm("Are you sure you want to clear all items from the inventory?");
+            if (confirmation) {
+                // Clear the items list from local storage
+                localStorage.removeItem("inventory");
+
+                // Refresh the table to remove all items
+                loadInventoryData();
+            }
+        }
+    </script>
+</body>
+</html>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192x192.png">
+
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function() {
+      navigator.serviceWorker.register('service-worker.js').then(function(registration) {
+        console.log('Service Worker registered with scope:', registration.scope);
+      }).catch(function(error) {
+        console.log('Service Worker registration failed:', error);
+      });
+    });
+  }
+</script>
+<!-- Add the manifest link -->
+<link rel="manifest" href="/manifest.json">
+
+<!-- Add the service worker script -->
+<script src="/service-worker.js"></script>.
+
+
